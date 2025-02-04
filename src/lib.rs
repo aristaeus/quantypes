@@ -181,6 +181,46 @@ impl QuantumCircuit {
     }
 }
 
+trait QuantumSimulator {
+    fn run_circuit(&mut self, circ: &QuantumCircuit) {
+        for gate in circ.gates.iter() {
+            match gate {
+                Gate::I(_) => (),
+                Gate::X(q) => self.x(*q),
+                Gate::Y(q) => self.y(*q),
+                Gate::Z(q) => self.z(*q),
+                Gate::H(q) => self.h(*q),
+                Gate::S(q) => self.s(*q),
+                Gate::Cz(c, t) => self.cz(*c, *t),
+                Gate::Cx(c, t) => self.cx(*c, *t),
+                Gate::T(q) => self.t(*q),
+                Gate::Ccz(c_1, c_2, t) => self.ccz(*c_1, *c_2, *t),
+            }
+        }
+    }
+
+    fn x(&mut self, q: usize);
+    fn y(&mut self, q: usize);
+    fn z(&mut self, q: usize);
+    fn s(&mut self, q: usize);
+    fn h(&mut self, q: usize);
+    fn cz(&mut self, control: usize, target: usize) {
+        self.h(target);
+        self.cx(control, target);
+        self.h(target);
+    }
+    fn cx(&mut self, control: usize, target: usize) {
+        self.h(target);
+        self.cz(control, target);
+        self.h(target);
+    }
+    fn cnot(&mut self, control: usize, target: usize) {
+        self.cx(control, target);
+    }
+    fn t(&mut self, q: usize);
+    fn ccz(&mut self, control_1: usize, control_2: usize, target: usize);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
