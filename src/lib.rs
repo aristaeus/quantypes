@@ -52,7 +52,7 @@ impl Display for Pauli {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Gate {
     I(usize),
     X(usize),
@@ -62,8 +62,15 @@ pub enum Gate {
     S(usize),
     Cz(usize, usize),
     Cx(usize, usize),
+    Swap(usize, usize),
     T(usize),
+    Tdg(usize),
+    Rx(usize, f64),
+    Ry(usize, f64),
+    Rz(usize, f64),
     Ccz(usize, usize, usize),
+    Ccx(usize, usize, usize),
+    Cswap(usize, usize, usize),
 }
 
 impl Display for Gate {
@@ -77,8 +84,15 @@ impl Display for Gate {
             Gate::S(q) => write!(f, "S_{}", q),
             Gate::Cz(c, t) => write!(f, "CZ_{},{}", c, t),
             Gate::Cx(c, t) => write!(f, "CX_{},{}", c, t),
+            Gate::Swap(a, b) => write!(f, "CX_{},{}", a, b),
             Gate::T(q) => write!(f, "T_{}", q),
+            Gate::Tdg(q) => write!(f, "Tdg_{}", q),
+            Gate::Rx(q, a) => write!(f, "Rx_{}({})", q, a),
+            Gate::Ry(q, a) => write!(f, "Ry_{}({})", q, a),
+            Gate::Rz(q, a) => write!(f, "Rz_{}({})", q, a),
             Gate::Ccz(c_1, c_2, t) => write!(f, "CCZ_{},{},{}", c_1, c_2, t),
+            Gate::Ccx(c_1, c_2, t) => write!(f, "CCX_{},{},{}", c_1, c_2, t),
+            Gate::Cswap(c, a, b) => write!(f, "CSWAP_{},{},{}", c, a, b),
         }
     }
 }
@@ -94,8 +108,15 @@ impl Gate {
             Gate::S(q) => vec![*q],
             Gate::Cz(c, t) => vec![*c, *t],
             Gate::Cx(c, t) => vec![*c, *t],
+            Gate::Swap(a, b) => vec![*a, *b],
             Gate::T(q) => vec![*q],
+            Gate::Tdg(q) => vec![*q],
+            Gate::Rx(q, _) => vec![*q],
+            Gate::Ry(q, _) => vec![*q],
+            Gate::Rz(q, _) => vec![*q],
             Gate::Ccz(c_1, c_2, t) => vec![*c_1, *c_2, *t],
+            Gate::Ccx(c_1, c_2, t) => vec![*c_1, *c_2, *t],
+            Gate::Cswap(c, a, b) => vec![*c, *a, *b],
         }
     }
 }
@@ -163,12 +184,48 @@ impl QuantumCircuit {
         self.cx(control, target);
     }
 
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.apply_gate(Gate::Swap(a, b));
+    }
+
     pub fn t(&mut self, q: usize) {
         self.apply_gate(Gate::T(q));
     }
 
+    pub fn tdg(&mut self, q: usize) {
+        self.apply_gate(Gate::Tdg(q));
+    }
+
+    pub fn rx(&mut self, q: usize, angle: f64) {
+        self.apply_gate(Gate::Rx(q, angle));
+    }
+
+    pub fn ry(&mut self, q: usize, angle: f64) {
+        self.apply_gate(Gate::Rx(q, angle));
+    }
+
+    pub fn rz(&mut self, q: usize, angle: f64) {
+        self.apply_gate(Gate::Rx(q, angle));
+    }
+
     pub fn ccz(&mut self, control_1: usize, control_2: usize, target: usize) {
         self.apply_gate(Gate::Ccz(control_1, control_2, target));
+    }
+
+    pub fn ccx(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.apply_gate(Gate::Ccx(control_1, control_2, target));
+    }
+
+    pub fn toff(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.ccx(control_1, control_2, target);
+    }
+
+    pub fn toffoli(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.ccx(control_1, control_2, target);
+    }
+
+    pub fn cswap(&mut self, control: usize, a: usize, b: usize) {
+        self.apply_gate(Gate::Cswap(control, a, b));
     }
 }
 
@@ -181,24 +238,7 @@ impl QuantumCircuit {
     }
 }
 
-trait QuantumSimulator {
-    fn run_circuit(&mut self, circ: &QuantumCircuit) {
-        for gate in circ.gates.iter() {
-            match gate {
-                Gate::I(_) => (),
-                Gate::X(q) => self.x(*q),
-                Gate::Y(q) => self.y(*q),
-                Gate::Z(q) => self.z(*q),
-                Gate::H(q) => self.h(*q),
-                Gate::S(q) => self.s(*q),
-                Gate::Cz(c, t) => self.cz(*c, *t),
-                Gate::Cx(c, t) => self.cx(*c, *t),
-                Gate::T(q) => self.t(*q),
-                Gate::Ccz(c_1, c_2, t) => self.ccz(*c_1, *c_2, *t),
-            }
-        }
-    }
-
+pub trait CliffordQuantumSimulator {
     fn x(&mut self, q: usize);
     fn y(&mut self, q: usize);
     fn z(&mut self, q: usize);
@@ -217,8 +257,71 @@ trait QuantumSimulator {
     fn cnot(&mut self, control: usize, target: usize) {
         self.cx(control, target);
     }
-    fn t(&mut self, q: usize);
-    fn ccz(&mut self, control_1: usize, control_2: usize, target: usize);
+    fn swap(&mut self, a: usize, b: usize) {
+        self.cx(a, b);
+        self.cx(b, a);
+        self.cx(a, b);
+    }
+}
+
+pub trait QuantumSimulator: CliffordQuantumSimulator {
+    fn run_circuit(&mut self, circ: &QuantumCircuit) {
+        for gate in circ.gates.iter() {
+            match gate {
+                Gate::I(_) => (),
+                Gate::X(q) => self.x(*q),
+                Gate::Y(q) => self.y(*q),
+                Gate::Z(q) => self.z(*q),
+                Gate::H(q) => self.h(*q),
+                Gate::S(q) => self.s(*q),
+                Gate::Cz(c, t) => self.cz(*c, *t),
+                Gate::Cx(c, t) => self.cx(*c, *t),
+                Gate::Swap(a, b) => self.swap(*a, *b),
+                Gate::T(q) => self.tdg(*q),
+                Gate::Tdg(q) => self.t(*q),
+                Gate::Rx(q, a) => self.rx(*q, *a),
+                Gate::Ry(q, a) => self.ry(*q, *a),
+                Gate::Rz(q, a) => self.rz(*q, *a),
+                Gate::Ccz(c_1, c_2, t) => self.ccz(*c_1, *c_2, *t),
+                Gate::Ccx(c_1, c_2, t) => self.ccx(*c_1, *c_2, *t),
+                Gate::Cswap(c, a, b) => self.cswap(*c, *a, *b),
+            }
+        }
+    }
+
+    fn t(&mut self, q: usize) {
+        self.tdg(q);
+        self.s(q);
+    }
+    fn tdg(&mut self, q: usize) {
+        self.t(q);
+        self.s(q);
+        self.z(q);
+    }
+    fn rx(&mut self, q: usize, angle: f64);
+    fn ry(&mut self, q: usize, angle: f64);
+    fn rz(&mut self, q: usize, angle: f64);
+    fn ccz(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.h(target);
+        self.ccx(control_1, control_2, target);
+        self.h(target);
+    }
+    fn ccx(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.h(target);
+        self.ccz(control_1, control_2, target);
+        self.h(target);
+    }
+    fn toff(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.ccx(control_1, control_2, target);
+    }
+    fn toffoli(&mut self, control_1: usize, control_2: usize, target: usize) {
+        self.ccx(control_1, control_2, target);
+    }
+    fn cswap(&mut self, control: usize, a: usize, b: usize) {
+        self.ccx(control, a, b);
+        self.ccx(control, b, a);
+        self.ccx(control, a, b);
+    }
 }
 
 #[cfg(test)]
