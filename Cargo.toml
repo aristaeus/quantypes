@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 thiserror = "1.0.63"
 pyo3 = {version = ">=0.19", optional=true, features = ["multiple-pymethods"]}
+rayon = {version = ">=1.10", optional = true}
 
 [features]
-default = ["pyo3"]
+default = ["pyo3", "rayon"]

@@ -5,6 +5,9 @@ use thiserror::Error;
 #[cfg(feature = "pyo3")]
 use pyo3::{pyclass, pymethods};
 
+#[cfg(feature = "rayon")]
+use rayon::prelude::*;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Pauli {
     I,
@@ -132,7 +135,7 @@ pub struct QuantumCircuit {
 #[pymethods]
 impl QuantumCircuit {
     #[new]
-    pub fn new(num_qubits: usize) -> QuantumCircuit {
+    pub fn new_py(num_qubits: usize) -> QuantumCircuit {
         QuantumCircuit {
             num_qubits,
             ..Default::default()
@@ -140,7 +143,6 @@ impl QuantumCircuit {
     }
 }
 
-#[cfg(not(feature = "pyo3"))]
 impl QuantumCircuit {
     pub fn new(num_qubits: usize) -> QuantumCircuit {
         QuantumCircuit {
@@ -264,7 +266,7 @@ pub trait CliffordQuantumSimulator {
     }
 }
 
-pub trait QuantumSimulator: CliffordQuantumSimulator {
+pub trait QuantumSimulator: CliffordQuantumSimulator + Clone {
     fn run_circuit(&mut self, circ: &QuantumCircuit) {
         for gate in circ.gates.iter() {
             match gate {
@@ -318,10 +320,133 @@ pub trait QuantumSimulator: CliffordQuantumSimulator {
         self.ccx(control_1, control_2, target);
     }
     fn cswap(&mut self, control: usize, a: usize, b: usize) {
-        self.ccx(control, a, b);
+        self.cx(a, b);
         self.ccx(control, b, a);
-        self.ccx(control, a, b);
+        self.cx(a, b);
     }
+    // fn expectation(&mut self, ) -> f64;
+    // fn measure(&mut self, q: usize);
+    fn project(&mut self, q: usize) -> usize;
+    fn sample(&self) -> Vec<usize> {
+        let mut sim = self.clone();
+        (0..self.num_qubits()).map(|i| sim.project(i)).collect()
+    }
+    fn num_qubits(&self) -> usize;
+}
+
+#[cfg(feature = "rayon")]
+pub trait ParallelQuantumSimulator: QuantumSimulator + Sync {
+    fn sample_parallel(&self, num_shots: usize) -> Vec<Vec<usize>> {
+        (0..num_shots)
+            .into_par_iter()
+            .map(|_| self.sample())
+            .collect()
+    }
+}
+
+#[cfg(feature = "rayon")]
+impl<T: QuantumSimulator + Sync> ParallelQuantumSimulator for T {}
+
+#[cfg(feature = "pyo3")]
+#[macro_export]
+macro_rules! quantum_simulator_python {
+    ($id:ty) => {
+        #[pymethods]
+        impl $id {
+            #[pyo3(name = "x")]
+            fn x_py(&mut self, q: usize) {
+                self.x(q);
+            }
+            #[pyo3(name = "y")]
+            fn y_py(&mut self, q: usize) {
+                self.y(q);
+            }
+            #[pyo3(name = "z")]
+            fn z_py(&mut self, q: usize) {
+                self.z(q);
+            }
+            #[pyo3(name = "h")]
+            fn h_py(&mut self, q: usize) {
+                self.h(q);
+            }
+            #[pyo3(name = "s")]
+            fn s_py(&mut self, q: usize) {
+                self.s(q);
+            }
+            #[pyo3(name = "cz")]
+            fn cz_py(&mut self, control: usize, target: usize) {
+                self.cz(control, target);
+            }
+            #[pyo3(name = "cx")]
+            fn cx_py(&mut self, control: usize, target: usize) {
+                self.cx(control, target);
+            }
+            #[pyo3(name = "cnot")]
+            fn cnot_py(&mut self, control: usize, target: usize) {
+                self.cnot(control, target);
+            }
+            #[pyo3(name = "swap")]
+            fn swap_py(&mut self, control: usize, target: usize) {
+                self.swap(control, target);
+            }
+            #[pyo3(name = "t")]
+            fn t_py(&mut self, q: usize) {
+                self.t(q);
+            }
+            #[pyo3(name = "tdg")]
+            fn tdg_py(&mut self, q: usize) {
+                self.tdg(q);
+            }
+            #[pyo3(name = "rx")]
+            fn rx_py(&mut self, q: usize, angle: f64) {
+                self.rx(q, angle);
+            }
+            #[pyo3(name = "ry")]
+            fn ry_py(&mut self, q: usize, angle: f64) {
+                self.ry(q, angle);
+            }
+            #[pyo3(name = "rz")]
+            fn rz_py(&mut self, q: usize, angle: f64) {
+                self.rz(q, angle);
+            }
+            #[pyo3(name = "ccz")]
+            fn ccz_py(&mut self, control_1: usize, control_2: usize, target: usize) {
+                self.ccz(control_1, control_2, target);
+            }
+            #[pyo3(name = "ccx")]
+            fn ccx_py(&mut self, control_1: usize, control_2: usize, target: usize) {
+                self.ccx(control_1, control_2, target);
+            }
+            #[pyo3(name = "toff")]
+            fn toff_py(&mut self, control_1: usize, control_2: usize, target: usize) {
+                self.toff(control_1, control_2, target);
+            }
+            #[pyo3(name = "toffoli")]
+            fn toffoli_py(&mut self, control_1: usize, control_2: usize, target: usize) {
+                self.toffoli(control_1, control_2, target);
+            }
+            #[pyo3(name = "cswap")]
+            fn cswap_py(&mut self, control: usize, a: usize, b: usize) {
+                self.cswap(control, a, b);
+            }
+
+            #[pyo3(name = "project")]
+            fn project_py(&mut self, q: usize) -> usize {
+                self.project(q)
+            }
+
+            #[pyo3(name = "sample")]
+            fn sample_py(&self) -> Vec<usize> {
+                self.sample()
+            }
+            #[pyo3(name = "sample_parallel")]
+            // TODO: why does this not work??
+            // #[cfg(feature = "rayon")]
+            fn sample_parallel_py(&self, num_shots: usize) -> Vec<Vec<usize>> {
+                quantypes::ParallelQuantumSimulator::sample_parallel(self, num_shots)
+            }
+        }
+    };
 }
 
 #[cfg(test)]
