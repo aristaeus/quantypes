@@ -198,15 +198,15 @@ impl QuantumCircuit {
         self.apply_gate(Gate::Tdg(q));
     }
 
-    pub fn rx(&mut self, q: usize, angle: f64) {
+    pub fn rx(&mut self, angle: f64, q: usize) {
         self.apply_gate(Gate::Rx(q, angle));
     }
 
-    pub fn ry(&mut self, q: usize, angle: f64) {
+    pub fn ry(&mut self, angle: f64, q: usize) {
         self.apply_gate(Gate::Rx(q, angle));
     }
 
-    pub fn rz(&mut self, q: usize, angle: f64) {
+    pub fn rz(&mut self, angle: f64, q: usize) {
         self.apply_gate(Gate::Rx(q, angle));
     }
 
@@ -281,9 +281,9 @@ pub trait QuantumSimulator: CliffordQuantumSimulator + Clone {
                 Gate::Swap(a, b) => self.swap(*a, *b),
                 Gate::T(q) => self.tdg(*q),
                 Gate::Tdg(q) => self.t(*q),
-                Gate::Rx(q, a) => self.rx(*q, *a),
-                Gate::Ry(q, a) => self.ry(*q, *a),
-                Gate::Rz(q, a) => self.rz(*q, *a),
+                Gate::Rx(q, a) => self.rx(*a, *q),
+                Gate::Ry(q, a) => self.ry(*a, *q),
+                Gate::Rz(q, a) => self.rz(*a, *q),
                 Gate::Ccz(c_1, c_2, t) => self.ccz(*c_1, *c_2, *t),
                 Gate::Ccx(c_1, c_2, t) => self.ccx(*c_1, *c_2, *t),
                 Gate::Cswap(c, a, b) => self.cswap(*c, *a, *b),
@@ -300,9 +300,9 @@ pub trait QuantumSimulator: CliffordQuantumSimulator + Clone {
         self.s(q);
         self.z(q);
     }
-    fn rx(&mut self, q: usize, angle: f64);
-    fn ry(&mut self, q: usize, angle: f64);
-    fn rz(&mut self, q: usize, angle: f64);
+    fn rx(&mut self, angle: f64, q: usize);
+    fn ry(&mut self, angle: f64, q: usize);
+    fn rz(&mut self, angle: f64, q: usize);
     fn ccz(&mut self, control_1: usize, control_2: usize, target: usize) {
         self.h(target);
         self.ccx(control_1, control_2, target);
@@ -398,16 +398,16 @@ macro_rules! quantum_simulator_python {
                 self.tdg(q);
             }
             #[pyo3(name = "rx")]
-            fn rx_py(&mut self, q: usize, angle: f64) {
-                self.rx(q, angle);
+            fn rx_py(&mut self, angle: f64, q: usize) {
+                self.rx(angle, q);
             }
             #[pyo3(name = "ry")]
-            fn ry_py(&mut self, q: usize, angle: f64) {
-                self.ry(q, angle);
+            fn ry_py(&mut self, angle: f64, q: usize) {
+                self.ry(angle, q);
             }
             #[pyo3(name = "rz")]
-            fn rz_py(&mut self, q: usize, angle: f64) {
-                self.rz(q, angle);
+            fn rz_py(&mut self, angle: f64, q: usize) {
+                self.rz(angle, q);
             }
             #[pyo3(name = "ccz")]
             fn ccz_py(&mut self, control_1: usize, control_2: usize, target: usize) {
@@ -447,6 +447,28 @@ macro_rules! quantum_simulator_python {
             }
         }
     };
+}
+
+pub trait NoisyQuantumSimulator: QuantumSimulator {
+    fn x_exact(&mut self, q: usize);
+    fn y_exact(&mut self, q: usize);
+    fn z_exact(&mut self, q: usize);
+    fn s_exact(&mut self, q: usize);
+    fn h_exact(&mut self, q: usize);
+    fn cz_exact(&mut self, control: usize, target: usize);
+    fn cx_exact(&mut self, control: usize, target: usize);
+    fn cnot_exact(&mut self, control: usize, target: usize);
+    fn swap_exact(&mut self, a: usize, b: usize);
+    fn t_exact(&mut self, q: usize);
+    fn tdg_exact(&mut self, q: usize);
+    fn rx_exact(&mut self, q: usize, angle: f64);
+    fn ry_exact(&mut self, q: usize, angle: f64);
+    fn rz_exact(&mut self, q: usize, angle: f64);
+    fn ccz_exact(&mut self, control_1: usize, control_2: usize, target: usize);
+    fn ccx_exact(&mut self, control_1: usize, control_2: usize, target: usize);
+    fn toff_exact(&mut self, control_1: usize, control_2: usize, target: usize);
+    fn toffoli_exact(&mut self, control_1: usize, control_2: usize, target: usize);
+    fn cswap_exact(&mut self, control: usize, a: usize, b: usize);
 }
 
 #[cfg(test)]
