@@ -74,6 +74,7 @@ pub enum Gate {
     Ccz(usize, usize, usize),
     Ccx(usize, usize, usize),
     Cswap(usize, usize, usize),
+    Measure(usize),
 }
 
 impl Display for Gate {
@@ -96,6 +97,7 @@ impl Display for Gate {
             Gate::Ccz(c_1, c_2, t) => write!(f, "CCZ_{},{},{}", c_1, c_2, t),
             Gate::Ccx(c_1, c_2, t) => write!(f, "CCX_{},{},{}", c_1, c_2, t),
             Gate::Cswap(c, a, b) => write!(f, "CSWAP_{},{},{}", c, a, b),
+            Gate::Measure(q) => write!(f, "MEAURE_{}", q),
         }
     }
 }
@@ -120,6 +122,7 @@ impl Gate {
             Gate::Ccz(c_1, c_2, t) => vec![*c_1, *c_2, *t],
             Gate::Ccx(c_1, c_2, t) => vec![*c_1, *c_2, *t],
             Gate::Cswap(c, a, b) => vec![*c, *a, *b],
+            Gate::Measure(q) => vec![*q],
         }
     }
 }
@@ -229,6 +232,10 @@ impl QuantumCircuit {
     pub fn cswap(&mut self, control: usize, a: usize, b: usize) {
         self.apply_gate(Gate::Cswap(control, a, b));
     }
+
+    pub fn measure(&mut self, q: usize) {
+        self.apply_gate(Gate::Measure(q));
+    }
 }
 
 impl QuantumCircuit {
@@ -267,7 +274,8 @@ pub trait CliffordQuantumSimulator {
 }
 
 pub trait QuantumSimulator: CliffordQuantumSimulator + Clone {
-    fn run_circuit(&mut self, circ: &QuantumCircuit) {
+    fn run_circuit(&mut self, circ: &QuantumCircuit) -> Vec<usize> {
+        let mut measurements = Vec::new();
         for gate in circ.gates.iter() {
             match gate {
                 Gate::I(_) => (),
@@ -287,8 +295,10 @@ pub trait QuantumSimulator: CliffordQuantumSimulator + Clone {
                 Gate::Ccz(c_1, c_2, t) => self.ccz(*c_1, *c_2, *t),
                 Gate::Ccx(c_1, c_2, t) => self.ccx(*c_1, *c_2, *t),
                 Gate::Cswap(c, a, b) => self.cswap(*c, *a, *b),
+                Gate::Measure(q) => measurements.push(self.measure(*q)),
             }
         }
+        measurements
     }
 
     fn t(&mut self, q: usize) {
@@ -325,11 +335,11 @@ pub trait QuantumSimulator: CliffordQuantumSimulator + Clone {
         self.cx(a, b);
     }
     // fn expectation(&mut self, ) -> f64;
-    // fn measure(&mut self, q: usize);
-    fn project(&mut self, q: usize) -> usize;
+    fn measure(&mut self, q: usize) -> usize;
+    // fn project(&mut self, q: usize) -> usize;
     fn sample(&self) -> Vec<usize> {
         let mut sim = self.clone();
-        (0..self.num_qubits()).map(|i| sim.project(i)).collect()
+        (0..self.num_qubits()).map(|i| sim.measure(i)).collect()
     }
     fn num_qubits(&self) -> usize;
 }
@@ -340,6 +350,16 @@ pub trait ParallelQuantumSimulator: QuantumSimulator + Sync {
         (0..num_shots)
             .into_par_iter()
             .map(|_| self.sample())
+            .collect()
+    }
+
+    fn run_parallel(&self, circ: &QuantumCircuit, num_shots: usize) -> Vec<Vec<usize>> {
+        (0..num_shots)
+            .into_par_iter()
+            .map(|_| {
+                let mut sim = self.clone();
+                sim.run_circuit(circ)
+            })
             .collect()
     }
 }
@@ -430,9 +450,14 @@ macro_rules! quantum_simulator_python {
                 self.cswap(control, a, b);
             }
 
+            #[pyo3(name = "measure")]
+            fn measure_py(&mut self, q: usize) -> usize {
+                self.measure(q)
+            }
+
             #[pyo3(name = "project")]
             fn project_py(&mut self, q: usize) -> usize {
-                self.project(q)
+                self.measure(q)
             }
 
             #[pyo3(name = "sample")]
@@ -444,6 +469,17 @@ macro_rules! quantum_simulator_python {
             // #[cfg(feature = "rayon")]
             fn sample_parallel_py(&self, num_shots: usize) -> Vec<Vec<usize>> {
                 quantypes::ParallelQuantumSimulator::sample_parallel(self, num_shots)
+            }
+
+            #[pyo3(name = "run_parallel")]
+            // TODO: why does this not work??
+            // #[cfg(feature = "rayon")]
+            fn run_parallel_py(
+                &self,
+                qc: &quantypes::QuantumCircuit,
+                num_shots: usize,
+            ) -> Vec<Vec<usize>> {
+                quantypes::ParallelQuantumSimulator::run_parallel(self, qc, num_shots)
             }
         }
     };
