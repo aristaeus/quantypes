@@ -206,11 +206,11 @@ impl QuantumCircuit {
     }
 
     pub fn ry(&mut self, angle: f64, q: usize) {
-        self.apply_gate(Gate::Rx(q, angle));
+        self.apply_gate(Gate::Ry(q, angle));
     }
 
     pub fn rz(&mut self, angle: f64, q: usize) {
-        self.apply_gate(Gate::Rx(q, angle));
+        self.apply_gate(Gate::Rz(q, angle));
     }
 
     pub fn ccz(&mut self, control_1: usize, control_2: usize, target: usize) {
