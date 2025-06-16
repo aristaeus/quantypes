@@ -9,6 +9,8 @@ edition = "2021"
 thiserror = "1.0.63"
 pyo3 = {version = ">=0.19", optional=true, features = ["multiple-pymethods"]}
 rayon = {version = ">=1.10", optional = true}
+ndarray = {version = ">=0.16", optional = true}
+num = "0.4.3"
 
 [features]
-default = ["pyo3", "rayon"]
+default = ["pyo3", "rayon", "ndarray"]

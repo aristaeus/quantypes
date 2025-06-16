@@ -8,6 +8,10 @@ use pyo3::{pyclass, pymethods};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
+#[cfg(feature = "ndarray")]
+use ndarray::*;
+use num::complex::Complex;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Pauli {
     I,
@@ -51,6 +55,20 @@ impl Display for Pauli {
             Pauli::X => write!(f, "X"),
             Pauli::Y => write!(f, "Y"),
             Pauli::Z => write!(f, "Z"),
+        }
+    }
+}
+
+impl From<Pauli> for Array2<Complex<f64>> {
+    fn from(p: Pauli) -> Self {
+        match p {
+            Pauli::I => array![[Complex::ONE, Complex::ZERO], [Complex::ZERO, Complex::ONE]],
+            Pauli::X => array![[Complex::ZERO, Complex::ONE], [Complex::ONE, Complex::ZERO]],
+            Pauli::Y => array![[Complex::ZERO, -Complex::I], [Complex::I, Complex::ZERO]],
+            Pauli::Z => array![
+                [Complex::ONE, Complex::ZERO],
+                [Complex::ZERO, -Complex::ONE]
+            ],
         }
     }
 }
