@@ -387,7 +387,7 @@ impl<T: QuantumSimulator + Sync> ParallelQuantumSimulator for T {}
 
 #[cfg(feature = "pyo3")]
 #[macro_export]
-macro_rules! quantum_simulator_python {
+macro_rules! clifford_quantum_simulator_python {
     ($id:ty) => {
         #[pymethods]
         impl $id {
@@ -427,6 +427,17 @@ macro_rules! quantum_simulator_python {
             fn swap_py(&mut self, control: usize, target: usize) {
                 self.swap(control, target);
             }
+        }
+    };
+}
+
+#[cfg(feature = "pyo3")]
+#[macro_export]
+macro_rules! quantum_simulator_python {
+    ($id:ty) => {
+        quantypes::clifford_quantum_simulator_python!($id);
+        #[pymethods]
+        impl $id {
             #[pyo3(name = "t")]
             fn t_py(&mut self, q: usize) {
                 self.t(q);
@@ -536,5 +547,10 @@ mod test {
             vec![Pauli::X, Pauli::Y, Pauli::Z]
         );
         assert_eq!(Pauli::try_from_str("ABC"), Err(PauliError::NotPauli));
+    }
+
+    #[test]
+    fn pauli_to_ndarray() {
+        assert_eq!(Array2::from(Pauli::I), Array2::eye(2));
     }
 }
