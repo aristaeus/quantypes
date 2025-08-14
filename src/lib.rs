@@ -1,3 +1,4 @@
+use std::f64::consts::PI;
 use std::{borrow::Borrow, fmt::Display};
 
 use thiserror::Error;
@@ -40,11 +41,51 @@ impl TryFrom<char> for Pauli {
     }
 }
 
+pub(crate) fn xd_gate(d: usize) -> Array2<Complex<f64>> {
+    let mut x = Array2::zeros((d, d));
+    x.slice_mut(s![1..d, ..d - 1]).assign(&Array2::eye(d - 1));
+    x[[0, d - 1]] = 1.0.into();
+    x
+}
+
+pub(crate) fn zd_gate(d: usize) -> Array2<Complex<f64>> {
+    let mut z = Array2::zeros((d, d));
+    for i in 0..d {
+        z[[i, i]] = Complex::from_polar(1., 2. * PI / (d as f64) * (i as f64));
+    }
+    z
+}
+
+pub(crate) fn yd_gate(d: usize) -> Array2<Complex<f64>> {
+    let x = xd_gate(d);
+    let mut z = Array2::zeros((d, d));
+    for i in 0..d {
+        z[[i, i]] = Complex::from_polar(1., 2. * PI / (d as f64) * (i as f64));
+    }
+    let phase = if d % 2 == 0 {
+        Complex::from_polar(1., PI / (d as f64))
+    } else {
+        1.0_f64.into()
+    };
+
+    phase * x.dot(&z)
+}
+
 impl Pauli {
     /// Try to convert a stringy type into a vector of Paulis
     pub fn try_from_str(value: impl Borrow<str>) -> Result<Vec<Pauli>, PauliError> {
         // is it possible to implement this as TryFrom?
         value.borrow().chars().map(|c| c.try_into()).collect()
+    }
+
+    #[cfg(feature = "ndarray")]
+    pub fn qudit_matrix(&self, d: usize) -> Array2<Complex<f64>> {
+        match self {
+            Pauli::I => Array2::eye(d),
+            Pauli::X => xd_gate(d),
+            Pauli::Y => yd_gate(d),
+            Pauli::Z => zd_gate(d),
+        }
     }
 }
 
