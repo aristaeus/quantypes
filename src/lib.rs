@@ -1,4 +1,5 @@
 use std::f64::consts::PI;
+use std::ops::Mul;
 use std::{borrow::Borrow, fmt::Display};
 
 use thiserror::Error;
@@ -87,6 +88,22 @@ impl Pauli {
             Pauli::Z => zd_gate(d),
         }
     }
+
+    /// returns true for X or Y
+    pub fn has_x(&self) -> bool {
+        match self {
+            Pauli::I | Pauli::Z => false,
+            Pauli::X | Pauli::Y => true,
+        }
+    }
+
+    /// returns true for Y or Z
+    pub fn has_z(&self) -> bool {
+        match self {
+            Pauli::I | Pauli::X => false,
+            Pauli::Y | Pauli::Z => true,
+        }
+    }
 }
 
 impl Display for Pauli {
@@ -110,6 +127,27 @@ impl From<Pauli> for Array2<Complex<f64>> {
                 [Complex::ONE, Complex::ZERO],
                 [Complex::ZERO, -Complex::ONE]
             ],
+        }
+    }
+}
+
+impl Mul for Pauli {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let left_x = self == Pauli::X || self == Pauli::Y;
+        let left_z = self == Pauli::Z || self == Pauli::Y;
+        let right_x = rhs == Pauli::X || rhs == Pauli::Y;
+        let right_z = rhs == Pauli::Z || rhs == Pauli::Y;
+
+        if (left_x ^ right_x) && (left_z ^ right_z) {
+            Pauli::Y
+        } else if left_x ^ right_x {
+            Pauli::X
+        } else if left_z ^ right_z {
+            Pauli::Z
+        } else {
+            Pauli::I
         }
     }
 }
